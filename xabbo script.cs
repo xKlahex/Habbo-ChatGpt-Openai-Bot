@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Linq;
 
-var apiKey = "OPENAI_API_KEY_HERE";
-var extravar = $"Be Friendly,smart and give cool answers with modern internet language. The Current Date is: '{DateTime.Today}'. The Output Language is 'English'. ";
+var apiKey = "OPENAI_API_KEY";
+var extravar = $"Be Friendly,smart and give cool humour answers with modern internet language. The Current Date is: '{DateTime.Today}'. The Output Language is 'German'. ";
 var role = "Your role is to behave like a Habbo Hotel user.";
 var chatInstructions = $"Answer a question from a Habbo Hotel user, but keep the response short and under 250 characters. Use modern internet language. No hashtags. {role}";
 var lastQuestionTime = DateTime.MinValue;
@@ -15,6 +15,7 @@ var cooldown = TimeSpan.FromSeconds(6);
 var isFloodControlled = false;
 var messageQueue = new Queue<(int messenger, string message)>();
 var isProcessing = false;
+var blacklistedWords = new List<string> { "spell backwards", "lana", "sex", "bobba" };
 
 async Task<string> GetAnswerFromAPI(HttpClient httpClient, object requestBody) {
   var jsonRequest = JsonSerializer.Serialize(requestBody);
@@ -34,7 +35,17 @@ async Task<string> GetAnswerFromAPI(HttpClient httpClient, object requestBody) {
   }
 }
 
+bool ContainsBlacklistedWord(string message) {
+  foreach (var word in blacklistedWords) {
+    if (message.ToLower().Contains(word.ToLower())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 OnChat(async e => {
+  string userNames = string.Join(", ", Users.Select(u => u.Name));
   if (isFloodControlled) {
     Log("Flood control in progress. Please wait.");
     Sign(17);
@@ -49,7 +60,12 @@ OnChat(async e => {
   lastQuestionTime = DateTime.UtcNow;
   var message = e.Message.Substring(1);
   
-  var roomfacts = $"Username who is asking the question: '{e.Entity.Name}', Current Habbo Room name youre in: '{Room.Name}',Current Room Description name youre in:'{Room.Description}', The Roomowner name of the current room '{Room.OwnerName}', Description/Motto in profile of who is asking the question '{e.Entity.Motto}',{extravar} ";
+  var roomfacts = $"Username who is asking the question: '{e.Entity.Name}', Current Habbo Room name youre in: '{Room.Name}',Current Room Description name youre in:'{Room.Description}', The Roomowner name of the current room '{Room.OwnerName}', Description/Motto in profile of who is asking the question '{e.Entity.Motto}',User count in the room '{Users.Count()}',All users who are in the room currently:'{userNames}',{extravar} ";
+
+  if (ContainsBlacklistedWord(message)) {
+    Shout($"{e.Entity.Name} Your question contains a blacklisted word, if you try it again i will mute you.", 5);
+    return;
+  }
 
   switch (message.ToLower())
   {
@@ -75,15 +91,15 @@ OnChat(async e => {
       Talk("*waving* Hello!!");
       Wave();
       return;
-case string s when s.Contains("follow me"):
-    Talk($"okay ill catch {e.Entity.Name} :)");
-    int[] dx = {-1, 1, -1, 1};
-    int[] dy = {-1, 1, 1, -1};
-    for (int i = 0; i < 4; i++) {
+    case string s when s.Contains("follow me"):
+      Talk($"okay ill catch {e.Entity.Name} :)");
+      int[] dx = {-1, 1, -1, 1};
+      int[] dy = {-1, 1, 1, -1};
+      for (int i = 0; i < 4; i++) {
         Move(e.Entity.Location.X + dx[i], e.Entity.Location.Y + dy[i]);
-            Delay(100);
-    }
-    return;
+        Delay(100);
+      }
+      return;
 
     default:
       if (message.ToLower().StartsWith("sign ") && int.TryParse(message.Substring(5), out int signNumber) && signNumber >= 0 && signNumber <= 14)
@@ -97,7 +113,7 @@ case string s when s.Contains("follow me"):
   if (message.ToLower().Contains("copy me")) {
     Talk($"Okay ill try to copy you {e.Entity.Name} :)");
     Send(Out["UpdateFigureData"],"M",e.Entity.Figure);
-    Delay(8500);
+    await Task.Delay(8500);
     Send(Out["UpdateFigureData"],"M","hr-155-49.lg-280-92.sh-290-92.hd-180-1.ca-1813-1408.ch-215-92");
     return;
   }
@@ -137,13 +153,13 @@ void SendVisibleMessage(int userId, string message) {
   Send(In.MessengerNewConsoleMessage, userId, "> " + message, 0, "");
 }
 
-OnIntercept(In["NewFriendRequest"], p => {
+OnIntercept(In["NewFriendRequest"], async p => {
   int userId = p.Packet.ReadInt();
   string userName = p.Packet.ReadString();
   AcceptFriendRequest(userId);
   Log($"{userName} added");
-  Delay(DelayTime()*10);
-  SendVisibleMessage(userId, "--Thank you for Adding me--");
+  await Task.Delay(DelayTime() * 10);
+  SendVisibleMessage(userId, "Thank you for Adding me");
   SendVisibleMessage(userId, "Ask me anything just write");
   SendVisibleMessage(userId, "# your_question");
 });
@@ -151,7 +167,10 @@ OnIntercept(In["NewFriendRequest"], p => {
 OnIntercept(In.MessengerNewConsoleMessage, async p => {
   var messenger = p.Packet.ReadInt();
   var DM_Message_Question = p.Packet.ReadString();
-  if (DM_Message_Question.StartsWith("#")) {
+  if (DM_Message_Question.StartsWith("#follow me")) {
+    Send(Out["FollowFriend"],messenger);
+  }
+  else if (DM_Message_Question.StartsWith("#")) {
     SendVisibleMessage(messenger, "Thinking...");
     var httpClient = new HttpClient {
       DefaultRequestHeaders = {
@@ -190,6 +209,10 @@ OnIntercept(In.MessengerNewConsoleMessage, async p => {
   }
 });
 
+OnIntercept(In.SystemBroadcast, async =>
+{
+    Sign(13);
+});
 
 OnIntercept(In.FloodControl, async (e) =>
 {
@@ -206,8 +229,6 @@ OnIntercept(In.FloodControl, async (e) =>
     isFloodControlled = false;
     Sign(15);
 });
-
-
 
 OnIntercept(In.MuteTimeRemaining, async (e) =>
 {
