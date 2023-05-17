@@ -6,34 +6,44 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Linq;
 
-var apiKey = "OPENAI_API_KEY";
-var extravar = $"Be Friendly,smart and give cool humour answers with modern internet language. The Current Date is: '{DateTime.Today}'. The Output Language is 'German'. ";
-var role = "Your role is to behave like a Habbo Hotel user.";
+var apiKey = "OPENAI_API_KEY_HERE";
+var extravar = $"Be Friendly,smart and give cool humourful answers with modern internet language. The Current Date is: '{DateTime.Today}'. The Output Language is 'English'. ";
+var role = $"Your name is '{Self.Name}' and your role is to behave like a Habbo Hotel user.";
 var chatInstructions = $"Answer a question from a Habbo Hotel user, but keep the response short and under 250 characters. Use modern internet language. No hashtags. {role}";
 var lastQuestionTime = DateTime.MinValue;
 var cooldown = TimeSpan.FromSeconds(6);
 var isFloodControlled = false;
 var messageQueue = new Queue<(int messenger, string message)>();
 var isProcessing = false;
-var blacklistedWords = new List<string> { "spell backwards", "lana", "sex", "bobba" };
+var blacklistedWords = new List<string> { "spell backwards", "sex", "bobba","kosovo" };
 
 async Task<string> GetAnswerFromAPI(HttpClient httpClient, object requestBody) {
   var jsonRequest = JsonSerializer.Serialize(requestBody);
   var content = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
-  var response = await httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
-  var responseContent = await response.Content.ReadAsStringAsync();
-  Log($"API Response: {responseContent}");
-  var jsonResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
-  if (jsonResponse.TryGetProperty("choices", out JsonElement choices) && choices.GetArrayLength() > 0) {
-    var answer = choices[0].GetProperty("message").GetProperty("content").GetString().Trim();
-    var pattern = @"[^a-zA-Z0-9\s\p{P}äöüÜÄÖß+=]";
-    var cleanAnswer = Regex.Replace(answer, pattern, "");
-    return cleanAnswer;
-  } else {
-    Log("No answer found or ratelimited.");
+  var delayTask = Task.Delay(TimeSpan.FromSeconds(8));
+  var apiTask = httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
+  var completedTask = await Task.WhenAny(apiTask, delayTask);
+  if (completedTask == apiTask) {
+    var response = await apiTask;
+    var responseContent = await response.Content.ReadAsStringAsync();
+    Log($"API Response: {responseContent}");
+    var jsonResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
+    if (jsonResponse.TryGetProperty("choices", out JsonElement choices) && choices.GetArrayLength() > 0) {
+      var answer = choices[0].GetProperty("message").GetProperty("content").GetString().Trim();
+      var pattern = @"[^a-zA-Z0-9\s\p{P}äöüÜÄÖß+=^‡|¥ƒí—ªºµ±÷•°¡¿¶™õ©®‘¢§£éØÕ†¬»½]";
+      var cleanAnswer = Regex.Replace(answer, pattern, "");
+      return cleanAnswer;
+    } else {
+      Log("No answer found or ratelimited.");
+      return "Sorry, I couldn't find an answer.";
+    }
+  }
+  else {
+    Log("Time limit exceeded.");
     return "Sorry, I couldn't find an answer.";
   }
 }
+
 
 bool ContainsBlacklistedWord(string message) {
   foreach (var word in blacklistedWords) {
@@ -60,7 +70,29 @@ OnChat(async e => {
   lastQuestionTime = DateTime.UtcNow;
   var message = e.Message.Substring(1);
   
-  var roomfacts = $"Username who is asking the question: '{e.Entity.Name}', Current Habbo Room name youre in: '{Room.Name}',Current Room Description name youre in:'{Room.Description}', The Roomowner name of the current room '{Room.OwnerName}', Description/Motto in profile of who is asking the question '{e.Entity.Motto}',User count in the room '{Users.Count()}',All users who are in the room currently:'{userNames}',{extravar} ";
+  var userProfile = await Task.Run(() => GetProfile(e.Entity.Id));
+
+  var roomfacts = @$"
+Username of the user asking the question:'{e.Entity.Name}'
+,Current room name:'{Room.Name}'
+,Current room description:'{Room.Description}'
+,Current room owner name:'{Room.OwnerName}'
+,Current room group name:'{Room.GroupName}'
+,Current room event name:'{Room.EventName}'
+,Current room event description:'{Room.EventDescription}'
+,Current room Floor item amount:'{Room.FloorItems.Count()}'
+,Current room Wall item amount:'{Room.WallItems.Count()}'
+,Number of users in the room:'{Users.Count()}'
+,List of all users currently in the room:'{userNames}'
+,Description/motto in profile of the user asking the question:'{e.Entity.Motto}'
+,Friend count of the user asking the question:'{userProfile.Friends}'
+,Activity points of the user asking the question:'{userProfile.ActivityPoints}'
+,Account creation date of the user asking the question:'{userProfile.Created}'
+,Whether the user asking the question is a friend:'{userProfile.IsFriend}'
+,Last login date of the user asking the question:'{userProfile.LastLogin}'
+,Level of the user asking the question:'{userProfile.Level}'
+,Star gems of the user asking the question:'{userProfile.StarGems}'
+,{extravar} ";
 
   if (ContainsBlacklistedWord(message)) {
     Shout($"{e.Entity.Name} Your question contains a blacklisted word, if you try it again i will mute you.", 5);
@@ -161,7 +193,7 @@ OnIntercept(In["NewFriendRequest"], async p => {
   await Task.Delay(DelayTime() * 10);
   SendVisibleMessage(userId, "Thank you for Adding me");
   SendVisibleMessage(userId, "Ask me anything just write");
-  SendVisibleMessage(userId, "# your_question");
+  SendVisibleMessage(userId, "+ your_question");
 });
 
 OnIntercept(In.MessengerNewConsoleMessage, async p => {
@@ -208,6 +240,7 @@ OnIntercept(In.MessengerNewConsoleMessage, async p => {
     }
   }
 });
+
 
 OnIntercept(In.SystemBroadcast, async =>
 {
