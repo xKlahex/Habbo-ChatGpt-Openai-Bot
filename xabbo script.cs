@@ -15,7 +15,7 @@ var cooldown = TimeSpan.FromSeconds(6);
 var isFloodControlled = false;
 var messageQueue = new Queue<(int messenger, string message)>();
 var isProcessing = false;
-var blacklistedWords = new List<string> { "spell backwards", "sex", "bobba","kosovo" };
+var blacklistedWords = new List<string> { "spell backwards", "sex", "bobba","lana" };
 
 async Task<string> GetAnswerFromAPI(HttpClient httpClient, object requestBody) {
   var jsonRequest = JsonSerializer.Serialize(requestBody);
