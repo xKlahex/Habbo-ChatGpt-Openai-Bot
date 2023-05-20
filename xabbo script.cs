@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Linq;
 
-var apiKey = "OPENAI_API_KEY_HERE";
-var extravar = $"Be Friendly,smart and give cool humourful answers with modern internet language. The Current Date is: '{DateTime.Today}'. The Output Language is 'English'. ";
+var apiKey = "OPENAI_API_KEY";
+var extravar = $"Be Friendly,smart and give cool humour answers with fresh answers and coolnes and little bit smart-ass with modern internet language. The Current Date is: '{DateTime.Today}'. The Output Language is 'English'. ";
 var role = $"Your name is '{Self.Name}' and your role is to behave like a Habbo Hotel user.";
 var chatInstructions = $"Answer a question from a Habbo Hotel user, but keep the response short and under 250 characters. Use modern internet language. No hashtags. {role}";
 var lastQuestionTime = DateTime.MinValue;
@@ -15,7 +15,7 @@ var cooldown = TimeSpan.FromSeconds(6);
 var isFloodControlled = false;
 var messageQueue = new Queue<(int messenger, string message)>();
 var isProcessing = false;
-var blacklistedWords = new List<string> { "spell backwards", "sex", "bobba","lana" };
+var blacklistedWords = new List<string> { "spell backwards", "sex", "bobba","kosovo" };
 
 async Task<string> GetAnswerFromAPI(HttpClient httpClient, object requestBody) {
   var jsonRequest = JsonSerializer.Serialize(requestBody);
